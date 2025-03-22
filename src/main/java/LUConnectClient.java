@@ -39,6 +39,10 @@ public class LUConnectClient extends JFrame {
     private Thread messageHandler;
     private boolean connected = false;
 
+    // Sound control
+    private JToggleButton muteButton;
+    private boolean soundIsMuted = false;
+
 
 
     public static void main(String[] args) {
@@ -46,12 +50,11 @@ public class LUConnectClient extends JFrame {
         dbConnection.establishConnection();
 
         SwingUtilities.invokeLater(() -> {
-            // Replace the simple username dialog with the full login dialog
             loginScreen();
         });
     }
 
-    public LUConnectClient(String username, String password) {
+    public LUConnectClient(String username, String password) throws URISyntaxException {
         this.username = username;
         this.password = password;  // Add this line
 
@@ -73,7 +76,7 @@ public class LUConnectClient extends JFrame {
     }
 
     // Initialize components for waitlist and chat screen
-    private void initializeComponents() {
+    private void initializeComponents() throws URISyntaxException {
         Font chatFont = new Font("Arial", Font.PLAIN, 14);
 
         chatArea = new JTextPane();
@@ -107,6 +110,15 @@ public class LUConnectClient extends JFrame {
         sendButton.setFont(new Font("Arial", Font.BOLD, 14));
         sendButton.setFocusPainted(false);
         sendButton.setBorder(BorderFactory.createEmptyBorder(5, 15, 5, 15));
+
+        // Initialize muteButton first before using it
+        muteButton = new JToggleButton("Mute");
+        muteButton.setFont(new Font("Arial", Font.BOLD, 14));
+        muteButton.setFocusPainted(false);
+        muteButton.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        muteButton.setBackground(new Color(240, 240, 240));
+        muteButton.addActionListener(e -> toggleMuteButton());
+
 
         recipientCombo = new JComboBox<>();
         recipientCombo.addItem("ALL");
@@ -177,6 +189,12 @@ public class LUConnectClient extends JFrame {
         titleLabel.setForeground(Color.WHITE);
         headerPanel.add(titleLabel, BorderLayout.WEST);
         headerPanel.add(statusLabel, BorderLayout.EAST);
+
+        // Add muteButton to a panel in the NORTH position
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        controlPanel.setBackground(HEADER_COLOR);
+        controlPanel.add(muteButton);
+        headerPanel.add(controlPanel, BorderLayout.CENTER);
 
         mainPanel.add(headerPanel, BorderLayout.NORTH);
 
@@ -277,6 +295,15 @@ public class LUConnectClient extends JFrame {
         add(mainPanel);
     }
 
+    private void toggleMuteButton() {
+        soundIsMuted = muteButton.isSelected();
+        if (soundIsMuted) {
+            muteButton.setText("Unmute");
+        } else {
+            muteButton.setText("Mute");
+        }
+    }
+
     private void connectToServer() {
         new Thread(() -> {
             try {
@@ -348,17 +375,33 @@ public class LUConnectClient extends JFrame {
         } else if (message.startsWith("USERS:")) {
             updateUserList(message.substring(6));
         } else if (message.startsWith("GROUP:")) {
+            if (!soundIsMuted)
+                try {
+                    URL get_sound = getClass().getClassLoader().getResource("incoming_message.wav");
+                    String sound_path = new File(get_sound.toURI()).getAbsolutePath();
+                    NotificationTone.playNotificationTone(sound_path);
+                } catch (Exception e){
+                    e.printStackTrace();
+                }
             addFormattedMessage(chatArea, message.substring(6));
         } else if (message.startsWith("PRIVATE:")) {
+            if (!soundIsMuted)
+                try {
+                    URL get_sound = getClass().getClassLoader().getResource("incoming_message.wav");
+                    String sound_path = new File(get_sound.toURI()).getAbsolutePath();
+                    NotificationTone.playNotificationTone(sound_path);
+                } catch (Exception e){
+                    e.printStackTrace();
+                }
             addFormattedMessage(privateArea, message.substring(8));
         } else if (message.startsWith("SERVER:")) {
             addFormattedMessage(chatArea, "SERVER: " + message.substring(7));
         } else if (message.startsWith("WAITING:")) {
-                String waitTime = message.substring(8);
-                statusLabel.setText("Waiting to connect");
-                waitTimeLabel.setText("Estimated wait time: " + waitTime);
-                getGlassPane().setVisible(true);
-                enableChat(false);
+            String waitTime = message.substring(8);
+            statusLabel.setText("Waiting to connect");
+            waitTimeLabel.setText("Estimated wait time: " + waitTime);
+            getGlassPane().setVisible(true);
+            enableChat(false);
         } else if (message.startsWith("ERROR:")) {
             JOptionPane.showMessageDialog(this,
                     message.substring(6), "Error", JOptionPane.ERROR_MESSAGE);
@@ -414,6 +457,17 @@ public class LUConnectClient extends JFrame {
 
         // Send the message to server
         writer.println("MSG:" + recipient + ":" + message);
+
+        // Play notification tone
+        if (!soundIsMuted) {
+            URL get_sound = getClass().getClassLoader().getResource("outgoing_message.wav");
+            try {
+                String sound_path = new File(get_sound.toURI()).getAbsolutePath();
+                NotificationTone.playNotificationTone(sound_path);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
 
         // Display in the appropriate area - group or personal
         String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
@@ -515,7 +569,11 @@ public class LUConnectClient extends JFrame {
 
             if (dbConnection.authenticateUser(username, password)) {
                 loginDialog.dispose();
-                new LUConnectClient(username, password);
+                try {
+                    new LUConnectClient(username, password);
+                } catch (URISyntaxException ex) {
+                    ex.printStackTrace();
+                }
             } else {
                 statusLabel.setText("Invalid username or password.");
             }
@@ -606,7 +664,11 @@ public class LUConnectClient extends JFrame {
 
             if (dbConnection.registerUser(username, password)) {
                 registerDialog.dispose();
-                new LUConnectClient(username, password);
+                try {
+                    new LUConnectClient(username, password);
+                } catch (URISyntaxException ex) {
+                    ex.printStackTrace();
+                }
             } else {
                 statusLabel.setText("Registration failed. Please try again.");
             }
