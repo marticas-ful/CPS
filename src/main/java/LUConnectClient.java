@@ -445,7 +445,7 @@ public class LUConnectClient extends JFrame {
         }
     }
 
-    // Send message to server to be processed
+    // Send message to server to be processed + store in DB
     private void sendMessage() {
         if (!connected) return;
 
@@ -458,10 +458,13 @@ public class LUConnectClient extends JFrame {
         // Send the message to server
         writer.println("MSG:" + recipient + ":" + message);
 
+        // Store message in database
+        dbConnection.storeMessage(message, username);
+
         // Play notification tone
         if (!soundIsMuted) {
-            URL get_sound = getClass().getClassLoader().getResource("outgoing_message.wav");
             try {
+                URL get_sound = getClass().getClassLoader().getResource("outgoing_message.wav");
                 String sound_path = new File(get_sound.toURI()).getAbsolutePath();
                 NotificationTone.playNotificationTone(sound_path);
             } catch (Exception e) {
@@ -482,7 +485,6 @@ public class LUConnectClient extends JFrame {
         // Clear the message field
         messageField.setText("");
     }
-
     // Enables/disables input fields based on connection
     private void enableChat(boolean enable) {
         messageField.setEnabled(enable);
