@@ -22,12 +22,10 @@ class DBConnection {
     public Connection establishConnection(){
 
         URL get_db = getClass().getClassLoader().getResource("LUConnect.db");
-        System.out.println("Resource URL: " + get_db);
 
         try {
             String db_path = new File(get_db.toURI()).getAbsolutePath();
             connection = DriverManager.getConnection("jdbc:sqlite:" + db_path);
-            System.out.println("Database connection exists");
         } catch (SQLException e) {
             e.printStackTrace();
         } catch (URISyntaxException e) {
@@ -36,24 +34,67 @@ class DBConnection {
         return connection;
     }
 
-    public void printTables() {
+    // Method to authenticate user (check login info)
+    public boolean authenticateUser(String username, String password) {
         if (connection == null) {
-            System.out.println("No database connection. Please establish a connection first.");
-            return;
+            System.out.println("No database connection.");
+            return false;
         }
 
-        String query = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'";
+        String query = "SELECT * FROM Users WHERE username = ? AND password = ?";
 
-        try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery(query)) {
+        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+            preparedStatement.setString(1, username);
+            preparedStatement.setString(2, password);
 
-            System.out.println("Tables in the database:");
-            while (rs.next()) {
-                System.out.println(rs.getString("name"));
+            try (ResultSet rs = preparedStatement.executeQuery()) {
+                return rs.next(); // Returns true if a matching user was found
             }
-
         } catch (SQLException e) {
             e.printStackTrace();
+            return false;
+        }
+    }
+
+    // Register user in DB
+    public boolean registerUser(String username, String password) {
+        if (connection == null) {
+            System.out.println("No database connection");
+            return false;
+        }
+
+        String query = "INSERT INTO Users (username, password) VALUES (?, ?)";
+
+        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
+            pstmt.setString(1, username);
+            pstmt.setString(2, password);
+
+            int rowsAffected = pstmt.executeUpdate();
+            return rowsAffected > 0;
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // Check if username already exists in DB
+    public boolean userExists(String username) {
+        if (connection == null) {
+            System.out.println("No database connection.");
+            return false;
+        }
+
+        String query = "SELECT * FROM Users WHERE username = ?";
+
+        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+            preparedStatement.setString(1, username);
+
+            try (ResultSet rs = preparedStatement.executeQuery()) {
+                return rs.next(); // Returns true if the username exists
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
         }
     }
 
