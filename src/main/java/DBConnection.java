@@ -24,11 +24,12 @@ class DBConnection {
         URL get_db = getClass().getClassLoader().getResource("LUConnect.db");
 
         try {
-            String db_path = new File(get_db.toURI()).getAbsolutePath();
+            String db_path = null;
+            if (get_db != null) {
+                db_path = new File(get_db.toURI()).getAbsolutePath();
+            }
             connection = DriverManager.getConnection("jdbc:sqlite:" + db_path);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        } catch (URISyntaxException e) {
+        } catch (SQLException | URISyntaxException e) {
             e.printStackTrace();
         }
         return connection;
@@ -47,8 +48,8 @@ class DBConnection {
             preparedStatement.setString(1, username);
             preparedStatement.setString(2, password);
 
-            try (ResultSet rs = preparedStatement.executeQuery()) {
-                return rs.next(); // Returns true if a matching user was found
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                return resultSet.next(); // Returns true if a matching user was found
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -65,11 +66,11 @@ class DBConnection {
 
         String query = "INSERT INTO Users (username, password) VALUES (?, ?)";
 
-        try (PreparedStatement pstmt = connection.prepareStatement(query)) {
-            pstmt.setString(1, username);
-            pstmt.setString(2, password);
+        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+            preparedStatement.setString(1, username);
+            preparedStatement.setString(2, password);
 
-            int rowsAffected = pstmt.executeUpdate();
+            int rowsAffected = preparedStatement.executeUpdate();
             return rowsAffected > 0;
         } catch (SQLException e) {
             e.printStackTrace();
@@ -89,9 +90,60 @@ class DBConnection {
         try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
             preparedStatement.setString(1, username);
 
-            try (ResultSet rs = preparedStatement.executeQuery()) {
-                return rs.next(); // Returns true if the username exists
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                return resultSet.next(); // Returns true if the username exists
             }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    // Get user ID from username
+    public int getUserId(String username) {
+        if (connection == null) {
+            System.out.println("No database connection.");
+            return -1;
+        }
+
+        String get_user_id = "SELECT user_id FROM Users WHERE username = ?";
+
+        try (PreparedStatement preparedStatement = connection.prepareStatement(get_user_id)) {
+            preparedStatement.setString(1, username);
+
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                if (resultSet.next()) {
+                    return resultSet.getInt("user_id");
+                }
+                return -1; // User not found
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
+    // Store message in message history
+    public boolean storeMessage(String messageContent, String username) {
+        if (connection == null) {
+            System.out.println("No database connection.");
+            return false;
+        }
+
+        int userId = getUserId(username);
+        if (userId == -1) {
+            System.out.println("User not found: " + username);
+            return false;
+        }
+
+        String query = "INSERT INTO MessageHistory (contents, user_id) VALUES (?, ?)";
+
+        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+            preparedStatement.setString(1, messageContent);
+            preparedStatement.setInt(2, userId);
+
+            int rowsAffected = preparedStatement.executeUpdate();
+            return rowsAffected > 0;
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
