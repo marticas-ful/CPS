@@ -22,10 +22,8 @@ public class LUConnectClient extends JFrame {
     private PrintWriter writer;
     private BufferedReader reader;
     private String username;
-    private JList<String> onlineUsersList;
-    private DefaultListModel<String> usersListModel;
-    private Thread messageHandler;
-    private boolean connected = false;
+    private String password;
+    private static DBConnection dbConnection;
 
     // Components
     private JTextPane chatArea;
@@ -36,27 +34,33 @@ public class LUConnectClient extends JFrame {
     private JLabel statusLabel;
     private JPanel waitingPanel;
     private JLabel waitTimeLabel;
+    private JList<String> onlineUsersList;
+    private DefaultListModel<String> usersListModel;
+    private Thread messageHandler;
+    private boolean connected = false;
+
 
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            String username = JOptionPane.showInputDialog(null,
-                    "Enter your username:", "LUConnect Login", JOptionPane.QUESTION_MESSAGE);
+        dbConnection = DBConnection.getInstance();
+        dbConnection.establishConnection();
 
-            if (username != null && !username.trim().isEmpty()) {
-                new LUConnectClient(username);
-            }
+        SwingUtilities.invokeLater(() -> {
+            // Replace the simple username dialog with the full login dialog
+            loginScreen();
         });
     }
 
-    public LUConnectClient(String username) {
+    public LUConnectClient(String username, String password) {
         this.username = username;
+        this.password = password;  // Add this line
 
-        // Set up GUI
+        // Set up the UI
         setTitle("LUConnect - " + username);
-        setSize(900, 600);
+        setSize(800, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
+
         initializeComponents();
         setupLayout();
 
@@ -68,7 +72,7 @@ public class LUConnectClient extends JFrame {
         Runtime.getRuntime().addShutdownHook(new Thread(this::disconnect));
     }
 
-    // Initialize all GUI components
+    // Initialize components for waitlist and chat screen
     private void initializeComponents() {
         Font chatFont = new Font("Arial", Font.PLAIN, 14);
 
@@ -79,12 +83,14 @@ public class LUConnectClient extends JFrame {
         chatArea.setForeground(Color.BLACK);
         chatArea.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
+
         privateArea = new JTextPane();
         privateArea.setEditable(false);
         privateArea.setFont(chatFont);
         privateArea.setBackground(new Color(240, 240, 250));
         privateArea.setForeground(Color.BLACK);
         privateArea.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+
 
         messageField = new JTextField();
         messageField.addActionListener(e -> sendMessage());
@@ -110,14 +116,11 @@ public class LUConnectClient extends JFrame {
         usersListModel = new DefaultListModel<>();
         onlineUsersList = new JList<>(usersListModel);
         onlineUsersList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-
-        // Add online users to online user list seen by client
         onlineUsersList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && onlineUsersList.getSelectedValue() != null) {
                 recipientCombo.setSelectedItem(onlineUsersList.getSelectedValue());
             }
         });
-
         onlineUsersList.setFont(new Font("Arial", Font.PLAIN, 14));
         onlineUsersList.setBackground(new Color(250, 240, 240));
         onlineUsersList.setCellRenderer(new DefaultListCellRenderer() {
@@ -135,6 +138,29 @@ public class LUConnectClient extends JFrame {
                 return c;
             }
         });
+
+        // Wait screen components
+        statusLabel = new JLabel("Connecting to server...");
+        statusLabel.setForeground(TEXT_COLOR);
+        statusLabel.setFont(new Font("Arial", Font.BOLD, 14));
+        statusLabel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+
+        waitingPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        waitingPanel.setBackground(new Color(0, 0, 0, 180));
+        waitTimeLabel = new JLabel("Waiting for connection slot...");
+        waitTimeLabel.setForeground(Color.WHITE);
+        waitTimeLabel.setFont(new Font("Arial", Font.BOLD, 16));
+
+        JProgressBar progressBar = new JProgressBar();
+        progressBar.setIndeterminate(true);
+        progressBar.setBackground(new Color(220, 220, 220));
+        progressBar.setForeground(new Color(180, 40, 40));
+        progressBar.setPreferredSize(new Dimension(200, 20));
+
+        waitingPanel.add(waitTimeLabel);
+        waitingPanel.add(Box.createVerticalStrut(10));
+        waitingPanel.add(progressBar);
+        waitingPanel.setVisible(false);
     }
 
     // Setup layout with components
@@ -154,13 +180,13 @@ public class LUConnectClient extends JFrame {
 
         mainPanel.add(headerPanel, BorderLayout.NORTH);
 
-        // Main split pane
+        // Main split pane (chat areas and users list)
         JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         mainSplitPane.setDividerSize(5);
         mainSplitPane.setBorder(null);
         mainSplitPane.setBackground(BACKGROUND_COLOR);
 
-        // Online users list
+        // User list panel
         JPanel usersPanel = new JPanel(new BorderLayout());
         usersPanel.setBackground(Color.GRAY);  // Set the background to grey
         JLabel usersLabel = new JLabel("Online Users", SwingConstants.CENTER);
@@ -242,8 +268,14 @@ public class LUConnectClient extends JFrame {
 
         mainPanel.add(inputPanel, BorderLayout.SOUTH);
 
-    }
+        // Waiting panel, which overlays main content
+        JPanel glassPanel = new JPanel(new GridBagLayout());
+        glassPanel.setOpaque(false);
+        glassPanel.add(waitingPanel);
+        setGlassPane(glassPanel);
 
+        add(mainPanel);
+    }
 
     private void connectToServer() {
         new Thread(() -> {
@@ -252,10 +284,10 @@ public class LUConnectClient extends JFrame {
                 writer = new PrintWriter(socket.getOutputStream(), true);
                 reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-                // Receive from server if connection unsuccessful
                 String welcome = reader.readLine();
                 if ("WELCOME".equals(welcome)) {
-                    writer.println(username);
+                    // Send username:password
+                    writer.println(username + ":" + password);
 
                     // Start message handling
                     messageHandler = new Thread(this::receiveMessages);
@@ -303,7 +335,6 @@ public class LUConnectClient extends JFrame {
 
     // Process messages from server
     private void processMessage(String message) {
-        // Account for all messages from server
         if (message.startsWith("CONNECTED")) {
             statusLabel.setText("Connected to server");
             statusLabel.setForeground(Color.GREEN);
@@ -322,6 +353,12 @@ public class LUConnectClient extends JFrame {
             addFormattedMessage(privateArea, message.substring(8));
         } else if (message.startsWith("SERVER:")) {
             addFormattedMessage(chatArea, "SERVER: " + message.substring(7));
+        } else if (message.startsWith("WAITING:")) {
+                String waitTime = message.substring(8);
+                statusLabel.setText("Waiting to connect");
+                waitTimeLabel.setText("Estimated wait time: " + waitTime);
+                getGlassPane().setVisible(true);
+                enableChat(false);
         } else if (message.startsWith("ERROR:")) {
             JOptionPane.showMessageDialog(this,
                     message.substring(6), "Error", JOptionPane.ERROR_MESSAGE);
@@ -378,7 +415,7 @@ public class LUConnectClient extends JFrame {
         // Send the message to server
         writer.println("MSG:" + recipient + ":" + message);
 
-        // Display in the appropriate area (depending on group or personal)
+        // Display in the appropriate area - group or personal
         String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
         String formattedMessage = "[" + timestamp + "] Me: " + message;
 
@@ -388,6 +425,7 @@ public class LUConnectClient extends JFrame {
             addFormattedMessage(privateArea, "To " + recipient + ": " + formattedMessage);
         }
 
+        // Clear the message field
         messageField.setText("");
     }
 
@@ -411,5 +449,175 @@ public class LUConnectClient extends JFrame {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    // Login screen
+    private static void loginScreen() {
+        JDialog loginDialog = new JDialog((Frame)null, "LUConnect Login", true);
+        loginDialog.setSize(350, 250);
+        loginDialog.setLocationRelativeTo(null);
+        loginDialog.setLayout(new BorderLayout());
+
+        JPanel formPanel = new JPanel(new GridLayout(3, 2, 10, 10));
+        formPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 10, 20));
+        formPanel.setBackground(new Color(240, 240, 240));
+
+        JLabel usernameLabel = new JLabel("Username:");
+        JTextField usernameField = new JTextField();
+        JLabel passwordLabel = new JLabel("Password:");
+        JPasswordField passwordField = new JPasswordField();
+
+        formPanel.add(usernameLabel);
+        formPanel.add(usernameField);
+        formPanel.add(passwordLabel);
+        formPanel.add(passwordField);
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        buttonPanel.setBackground(new Color(240, 240, 240));
+
+        JButton loginButton = new JButton("Login");
+        JButton registerButton = new JButton("Register");
+
+        loginButton.setBackground(new Color(180, 40, 40));
+        loginButton.setForeground(Color.WHITE);
+        loginButton.setFocusPainted(false);
+
+        registerButton.setBackground(GREY);
+        registerButton.setForeground(Color.WHITE);
+        registerButton.setFocusPainted(false);
+
+        buttonPanel.add(loginButton);
+        buttonPanel.add(registerButton);
+
+        JLabel statusLabel = new JLabel("", SwingConstants.CENTER);
+        statusLabel.setForeground(Color.RED);
+
+        JPanel statusPanel = new JPanel(new BorderLayout());
+        statusPanel.setBackground(new Color(240, 240, 240));
+        statusPanel.setBorder(BorderFactory.createEmptyBorder(10, 20, 20, 20));
+        statusPanel.add(statusLabel, BorderLayout.CENTER);
+
+        loginDialog.add(formPanel, BorderLayout.NORTH);
+        loginDialog.add(buttonPanel, BorderLayout.CENTER);
+        loginDialog.add(statusPanel, BorderLayout.SOUTH);
+
+        loginButton.addActionListener(e -> {
+            String username = usernameField.getText().trim();
+            String password = new String(passwordField.getPassword());
+
+            if (username.isEmpty() || password.isEmpty()) {
+                statusLabel.setText("Username and password are required.");
+                return;
+            }
+
+
+            System.out.println("Connection Established");
+
+            if (dbConnection.authenticateUser(username, password)) {
+                loginDialog.dispose();
+                new LUConnectClient(username, password);
+            } else {
+                statusLabel.setText("Invalid username or password.");
+            }
+        });
+
+        registerButton.addActionListener(e -> {
+            loginDialog.dispose();
+            registrationScreen();
+        });
+
+        loginDialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        loginDialog.setVisible(true);
+    }
+
+    // Registration screen
+    private static void registrationScreen() {
+        JDialog registerDialog = new JDialog((Frame)null, "LUConnect Registration", true);
+        registerDialog.setSize(350, 280);
+        registerDialog.setLocationRelativeTo(null);
+        registerDialog.setLayout(new BorderLayout());
+
+        JPanel formPanel = new JPanel(new GridLayout(4, 2, 10, 10));
+        formPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 10, 20));
+        formPanel.setBackground(new Color(240, 240, 240));
+
+        JLabel usernameLabel = new JLabel("Username:");
+        JTextField usernameField = new JTextField();
+        JLabel passwordLabel = new JLabel("Password:");
+        JPasswordField passwordField = new JPasswordField();
+        JLabel confirmLabel = new JLabel("Confirm Password:");
+        JPasswordField confirmField = new JPasswordField();
+
+        formPanel.add(usernameLabel);
+        formPanel.add(usernameField);
+        formPanel.add(passwordLabel);
+        formPanel.add(passwordField);
+        formPanel.add(confirmLabel);
+        formPanel.add(confirmField);
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        buttonPanel.setBackground(new Color(240, 240, 240));
+
+        JButton registerButton = new JButton("Register");
+        JButton backButton = new JButton("Back to Login");
+
+        registerButton.setBackground(new Color(180, 40, 40));
+        registerButton.setForeground(Color.WHITE);
+        registerButton.setFocusPainted(false);
+
+        backButton.setBackground(GREY);
+        backButton.setForeground(Color.WHITE);
+        backButton.setFocusPainted(false);
+
+        buttonPanel.add(registerButton);
+        buttonPanel.add(backButton);
+
+        JLabel statusLabel = new JLabel("", SwingConstants.CENTER);
+        statusLabel.setForeground(Color.RED);
+
+        JPanel statusPanel = new JPanel(new BorderLayout());
+        statusPanel.setBackground(new Color(240, 240, 240));
+        statusPanel.setBorder(BorderFactory.createEmptyBorder(10, 20, 20, 20));
+        statusPanel.add(statusLabel, BorderLayout.CENTER);
+
+        registerDialog.add(formPanel, BorderLayout.NORTH);
+        registerDialog.add(buttonPanel, BorderLayout.CENTER);
+        registerDialog.add(statusPanel, BorderLayout.SOUTH);
+
+        registerButton.addActionListener(e -> {
+            String username = usernameField.getText().trim();
+            String password = new String(passwordField.getPassword());
+            String confirmPassword = new String(confirmField.getPassword());
+
+            if (username.isEmpty() || password.isEmpty()) {
+                statusLabel.setText("Username and password are required.");
+                return;
+            }
+
+            if (!password.equals(confirmPassword)) {
+                statusLabel.setText("Passwords do not match.");
+                return;
+            }
+
+            if (dbConnection.userExists(username)) {
+                statusLabel.setText("Username already exists.");
+                return;
+            }
+
+            if (dbConnection.registerUser(username, password)) {
+                registerDialog.dispose();
+                new LUConnectClient(username, password);
+            } else {
+                statusLabel.setText("Registration failed. Please try again.");
+            }
+        });
+
+        backButton.addActionListener(e -> {
+            registerDialog.dispose();
+            loginScreen();
+        });
+
+        registerDialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        registerDialog.setVisible(true);
     }
 }
