@@ -34,7 +34,6 @@ public class LUConnectServer {
     public void startServer() {
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             System.out.println("Chat Server started on port " + PORT);
-            System.out.println("Chat Server started on port " + PORT);
 
             // Start the timer to update wait times every 10 seconds
             timer.scheduleAtFixedRate(new TimerTask() {
