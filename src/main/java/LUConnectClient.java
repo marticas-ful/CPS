@@ -25,6 +25,7 @@ public class LUConnectClient extends JFrame {
     private String username;
     private String password;
     private static DBConnection dbConnection;
+    private String encryptionKey;
 
     // Components
     private JTextPane chatArea;
@@ -313,23 +314,37 @@ public class LUConnectClient extends JFrame {
             String extension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
 
             if (extension.equals("jpeg") || extension.equals("docx") || extension.equals("pdf")) {
+                
                 String recipient = (String) recipientCombo.getSelectedItem();
+                
                 if (recipient == null || recipient.equals("ALL")) {
+                    
                     JOptionPane.showMessageDialog(this, "Please select a specific user for file transfer.", "No User Selected", JOptionPane.WARNING_MESSAGE);
                     return;
+                    
                 }
 
                 try {
+                    
                     byte[] fileBytes = java.nio.file.Files.readAllBytes(selectedFile.toPath());
                     String encodedFile = java.util.Base64.getEncoder().encodeToString(fileBytes);
                     writer.println("FILE:" + recipient + ":" + fileName + ":" + encodedFile);
-                    dbConnection.storeMessage(fileName, username, recipient);
+                    String encryptedFileName = Security.encrypt(fileName);
+                    dbConnection.storeMessage(encryptedFileName, username, recipient);
                     JOptionPane.showMessageDialog(this, "File sent: " + fileName, "File Sent", JOptionPane.INFORMATION_MESSAGE);
+                    
                 } catch (IOException ex) {
+                    
                     JOptionPane.showMessageDialog(this, "Error reading file: " + ex.getMessage(), "File Sending Error", JOptionPane.ERROR_MESSAGE);
+                
+                } catch (Exception e) {
+                    
+                    throw new RuntimeException(e);
                 }
             } else {
+                
                 JOptionPane.showMessageDialog(this, "Invalid file type- use .docx, .pdf and .jpeg only", "Invalid File", JOptionPane.ERROR_MESSAGE);
+            
             }
         }
     }
@@ -340,7 +355,9 @@ public class LUConnectClient extends JFrame {
     }
 
     private void connectToServer() {
+        
         new Thread(() -> {
+            
             try {
                 socket = new Socket(SERVER_HOST, SERVER_PORT);
                 writer = new PrintWriter(socket.getOutputStream(), true);
@@ -354,23 +371,28 @@ public class LUConnectClient extends JFrame {
                     messageHandler = new Thread(this::receiveMessages);
                     messageHandler.start();
                 }
+            
             } catch (IOException e) {
                 SwingUtilities.invokeLater(() -> {
                     statusLabel.setText("Connection failed: " + e.getMessage());
                     statusLabel.setForeground(Color.RED);
                 });
+            
             }
+        
         }).start();
     }
 
     // Continuously read incoming messages from server
     private void receiveMessages() {
+        
         try {
             String message;
             while ((message = reader.readLine()) != null) {
                 final String msg = message;
                 SwingUtilities.invokeLater(() -> processMessage(msg));
             }
+            
         } catch (IOException e) {
             if (connected) {
                 SwingUtilities.invokeLater(() -> {
@@ -384,6 +406,7 @@ public class LUConnectClient extends JFrame {
 
     // Format messages to send
     private void addFormattedMessage(JTextPane pane, String message) {
+        
         try {
             Document doc = pane.getDocument();
             doc.insertString(doc.getLength(), message + "\n", null);
@@ -391,10 +414,13 @@ public class LUConnectClient extends JFrame {
         } catch (BadLocationException e) {
             e.printStackTrace();
         }
+        
     }
 
     private void playNotificationSound(String resourceName) {
+        
         if (!soundIsMuted) {
+            
             try {
                 URL get_sound = getClass().getClassLoader().getResource(resourceName);
                 String sound_path = new File(get_sound.toURI()).getAbsolutePath();
@@ -402,6 +428,7 @@ public class LUConnectClient extends JFrame {
             } catch (Exception e) {
                 e.printStackTrace();
             }
+            
         }
     }
 
@@ -526,22 +553,28 @@ public class LUConnectClient extends JFrame {
         String recipient = (String) recipientCombo.getSelectedItem();
         if (recipient == null) recipient = "ALL";
 
-        writer.println("MSG:" + recipient + ":" + message);
+        try {
+            writer.println("MSG:" + recipient + ":" + message);
 
-        playNotificationSound("outgoing_message.wav");
+            playNotificationSound("outgoing_message.wav");
 
-        // Display in the appropriate area - group or personal
-        String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
-        String formattedMessage = "[" + timestamp + "] Me: " + message;
+            // Display in the appropriate area - group or personal
+            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+            String formattedMessage = "[" + timestamp + "] Me: " + message;
 
-        if ("ALL".equals(recipient)) {
-            addFormattedMessage(chatArea, formattedMessage);
-        } else {
-            addFormattedMessage(privateArea, "To " + recipient + ": " + formattedMessage);
+            if ("ALL".equals(recipient)) {
+                addFormattedMessage(chatArea, formattedMessage);
+            } else {
+                addFormattedMessage(privateArea, "To " + recipient + ": " + formattedMessage);
+            }
+            String encryptedMessage = Security.encrypt(message);
+            dbConnection.storeMessage(encryptedMessage, username, recipient);
+            
+            messageField.setText("");
+            
+        } catch (Exception e){
+            e.printStackTrace();
         }
-        dbConnection.storeMessage(message, username, recipient);
-        // Clear message field
-        messageField.setText("");
     }
 
     // Enables/disables input fields based on connection
@@ -562,7 +595,7 @@ public class LUConnectClient extends JFrame {
                 socket.close();
             }
         } catch (IOException e) {
-            // Silently ignore close errors during shutdown
+            e.printStackTrace();
         }
     }
 
