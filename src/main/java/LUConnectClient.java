@@ -1,4 +1,5 @@
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.*;
 import java.awt.*;
 import java.io.*;
@@ -30,6 +31,7 @@ public class LUConnectClient extends JFrame {
     private JTextPane privateArea;
     private JTextField messageField;
     private JButton sendButton;
+    private JButton openDirectoryButton;
     private JComboBox<String> recipientCombo;
     private JLabel statusLabel;
     private JPanel waitingPanel;
@@ -38,12 +40,11 @@ public class LUConnectClient extends JFrame {
     private DefaultListModel<String> usersListModel;
     private Thread messageHandler;
     private boolean connected = false;
+    private JProgressBar progressBar;
 
-    // Sound control
+    // Sound control components
     private JToggleButton muteButton;
     private boolean soundIsMuted = false;
-
-
 
     public static void main(String[] args) {
         dbConnection = DBConnection.getInstance();
@@ -56,9 +57,9 @@ public class LUConnectClient extends JFrame {
 
     public LUConnectClient(String username, String password) throws URISyntaxException {
         this.username = username;
-        this.password = password;  // Add this line
+        this.password = password;
 
-        // Set up the UI
+        // Set up UI
         setTitle("LUConnect - " + username);
         setSize(800, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -71,7 +72,7 @@ public class LUConnectClient extends JFrame {
         connectToServer();
         setVisible(true);
 
-        // Add shutdown hook
+        // Shutdown hook
         Runtime.getRuntime().addShutdownHook(new Thread(this::disconnect));
     }
 
@@ -86,14 +87,12 @@ public class LUConnectClient extends JFrame {
         chatArea.setForeground(Color.BLACK);
         chatArea.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-
         privateArea = new JTextPane();
         privateArea.setEditable(false);
         privateArea.setFont(chatFont);
         privateArea.setBackground(new Color(240, 240, 250));
         privateArea.setForeground(Color.BLACK);
         privateArea.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-
 
         messageField = new JTextField();
         messageField.addActionListener(e -> sendMessage());
@@ -105,20 +104,25 @@ public class LUConnectClient extends JFrame {
 
         sendButton = new JButton("Send");
         sendButton.addActionListener(e -> sendMessage());
-        sendButton.setBackground(new Color(128, 128, 128));
+        sendButton.setBackground(GREY);
         sendButton.setForeground(Color.WHITE);
         sendButton.setFont(new Font("Arial", Font.BOLD, 14));
         sendButton.setFocusPainted(false);
         sendButton.setBorder(BorderFactory.createEmptyBorder(5, 15, 5, 15));
 
-        // Initialize muteButton first before using it
         muteButton = new JToggleButton("Mute");
+        muteButton.addActionListener(e -> toggleMuteButton());
         muteButton.setFont(new Font("Arial", Font.BOLD, 14));
         muteButton.setFocusPainted(false);
         muteButton.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         muteButton.setBackground(new Color(240, 240, 240));
-        muteButton.addActionListener(e -> toggleMuteButton());
 
+        openDirectoryButton = new JButton("Files");
+        openDirectoryButton.addActionListener(e -> handleFiles());
+        openDirectoryButton.setFont(new Font("Arial", Font.BOLD, 14));
+        openDirectoryButton.setFocusPainted(false);
+        openDirectoryButton.setBackground(GREY);
+        openDirectoryButton.setForeground(Color.WHITE);
 
         recipientCombo = new JComboBox<>();
         recipientCombo.addItem("ALL");
@@ -151,7 +155,6 @@ public class LUConnectClient extends JFrame {
             }
         });
 
-        // Wait screen components
         statusLabel = new JLabel("Connecting to server...");
         statusLabel.setForeground(TEXT_COLOR);
         statusLabel.setFont(new Font("Arial", Font.BOLD, 14));
@@ -163,7 +166,7 @@ public class LUConnectClient extends JFrame {
         waitTimeLabel.setForeground(Color.WHITE);
         waitTimeLabel.setFont(new Font("Arial", Font.BOLD, 16));
 
-        JProgressBar progressBar = new JProgressBar();
+        progressBar = new JProgressBar();
         progressBar.setIndeterminate(true);
         progressBar.setBackground(new Color(220, 220, 220));
         progressBar.setForeground(new Color(180, 40, 40));
@@ -190,7 +193,6 @@ public class LUConnectClient extends JFrame {
         headerPanel.add(titleLabel, BorderLayout.WEST);
         headerPanel.add(statusLabel, BorderLayout.EAST);
 
-        // Add muteButton to a panel in the NORTH position
         JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         controlPanel.setBackground(HEADER_COLOR);
         controlPanel.add(muteButton);
@@ -198,15 +200,13 @@ public class LUConnectClient extends JFrame {
 
         mainPanel.add(headerPanel, BorderLayout.NORTH);
 
-        // Main split pane (chat areas and users list)
         JSplitPane mainSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         mainSplitPane.setDividerSize(5);
         mainSplitPane.setBorder(null);
         mainSplitPane.setBackground(BACKGROUND_COLOR);
 
-        // User list panel
         JPanel usersPanel = new JPanel(new BorderLayout());
-        usersPanel.setBackground(Color.GRAY);  // Set the background to grey
+        usersPanel.setBackground(GREY);
         JLabel usersLabel = new JLabel("Online Users", SwingConstants.CENTER);
         usersLabel.setFont(new Font("Arial", Font.BOLD, 16));
         usersLabel.setForeground(TEXT_COLOR);
@@ -215,18 +215,23 @@ public class LUConnectClient extends JFrame {
         JScrollPane usersScrollPane = new JScrollPane(onlineUsersList);
         usersScrollPane.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
+        JPanel directoryButtonPanel = new JPanel(new BorderLayout());
+        directoryButtonPanel.setBackground(GREY);
+        directoryButtonPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        directoryButtonPanel.add(openDirectoryButton, BorderLayout.CENTER);
+
         usersPanel.add(usersLabel, BorderLayout.NORTH);
         usersPanel.add(usersScrollPane, BorderLayout.CENTER);
+        usersPanel.add(directoryButtonPanel, BorderLayout.SOUTH);
         usersPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 10));
 
         JSplitPane chatSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
         chatSplitPane.setDividerSize(5);
         chatSplitPane.setBorder(null);
-        chatSplitPane.setBackground(Color.GRAY);  // Set the background to grey
+        chatSplitPane.setBackground(GREY);
 
-        // Group chat panel
         JPanel groupChatPanel = new JPanel(new BorderLayout());
-        groupChatPanel.setBackground(Color.GRAY);  // Set the background to grey
+        groupChatPanel.setBackground(GREY);
 
         JLabel groupLabel = new JLabel("Group Chat", SwingConstants.CENTER);
         groupLabel.setFont(new Font("Arial", Font.BOLD, 16));
@@ -240,9 +245,8 @@ public class LUConnectClient extends JFrame {
         groupChatPanel.add(groupScrollPane, BorderLayout.CENTER);
         groupChatPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 5));
 
-        // Private chat panel
         JPanel privateChatPanel = new JPanel(new BorderLayout());
-        privateChatPanel.setBackground(Color.GRAY);  // Set the background to grey
+        privateChatPanel.setBackground(GREY);
 
         JLabel privateLabel = new JLabel("Private Messages", SwingConstants.CENTER);
         privateLabel.setFont(new Font("Arial", Font.BOLD, 16));
@@ -265,7 +269,6 @@ public class LUConnectClient extends JFrame {
 
         mainPanel.add(mainSplitPane, BorderLayout.CENTER);
 
-        // Message input
         JPanel inputPanel = new JPanel(new BorderLayout(10, 0));
         inputPanel.setBackground(HEADER_COLOR);
         inputPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -286,7 +289,6 @@ public class LUConnectClient extends JFrame {
 
         mainPanel.add(inputPanel, BorderLayout.SOUTH);
 
-        // Waiting panel, which overlays main content
         JPanel glassPanel = new JPanel(new GridBagLayout());
         glassPanel.setOpaque(false);
         glassPanel.add(waitingPanel);
@@ -295,13 +297,45 @@ public class LUConnectClient extends JFrame {
         add(mainPanel);
     }
 
+    // Method to handle inputted files
+    private void handleFiles(){
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Select File");
+
+        FileNameExtensionFilter filter = new FileNameExtensionFilter(
+                "DOCX, PDF, JPEG", "docx", "pdf", "jpeg");
+        fileChooser.setFileFilter(filter);
+
+        int result = fileChooser.showOpenDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            File selectedFile = fileChooser.getSelectedFile();
+            String fileName = selectedFile.getName();
+            String extension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+
+            if (extension.equals("jpeg") || extension.equals("docx") || extension.equals("pdf")) {
+                String recipient = (String) recipientCombo.getSelectedItem();
+                if (recipient == null || recipient.equals("ALL")) {
+                    JOptionPane.showMessageDialog(this, "Please select a specific user for file transfer.", "No User Selected", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+
+                try {
+                    byte[] fileBytes = java.nio.file.Files.readAllBytes(selectedFile.toPath());
+                    String encodedFile = java.util.Base64.getEncoder().encodeToString(fileBytes);
+                    writer.println("FILE:" + recipient + ":" + fileName + ":" + encodedFile);
+                    JOptionPane.showMessageDialog(this, "File sent: " + fileName, "File Sent", JOptionPane.INFORMATION_MESSAGE);
+                } catch (IOException ex) {
+                    JOptionPane.showMessageDialog(this, "Error reading file: " + ex.getMessage(), "File Sending Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } else {
+                JOptionPane.showMessageDialog(this, "Invalid file type- use .docx, .pdf and .jpeg only", "Invalid File", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
     private void toggleMuteButton() {
         soundIsMuted = muteButton.isSelected();
-        if (soundIsMuted) {
-            muteButton.setText("Unmute");
-        } else {
-            muteButton.setText("Mute");
-        }
+        muteButton.setText(soundIsMuted ? "Unmute" : "Mute");
     }
 
     private void connectToServer() {
@@ -316,7 +350,6 @@ public class LUConnectClient extends JFrame {
                     // Send username:password
                     writer.println(username + ":" + password);
 
-                    // Start message handling
                     messageHandler = new Thread(this::receiveMessages);
                     messageHandler.start();
                 }
@@ -325,7 +358,6 @@ public class LUConnectClient extends JFrame {
                     statusLabel.setText("Connection failed: " + e.getMessage());
                     statusLabel.setForeground(Color.RED);
                 });
-                e.printStackTrace();
             }
         }).start();
     }
@@ -360,52 +392,90 @@ public class LUConnectClient extends JFrame {
         }
     }
 
+    private void playNotificationSound(String resourceName) {
+        if (!soundIsMuted) {
+            try {
+                URL get_sound = getClass().getClassLoader().getResource(resourceName);
+                String sound_path = new File(get_sound.toURI()).getAbsolutePath();
+                NotificationTone.playNotificationTone(sound_path);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     // Process messages from server
     private void processMessage(String message) {
         if (message.startsWith("CONNECTED")) {
+
             statusLabel.setText("Connected to server");
             statusLabel.setForeground(Color.GREEN);
             getGlassPane().setVisible(false);
             enableChat(true);
             connected = true;
 
-            // Get user list from server
+            // Get user list from users
             writer.println("USERS");
 
         } else if (message.startsWith("USERS:")) {
+
             updateUserList(message.substring(6));
+
         } else if (message.startsWith("GROUP:")) {
-            if (!soundIsMuted)
-                try {
-                    URL get_sound = getClass().getClassLoader().getResource("incoming_message.wav");
-                    String sound_path = new File(get_sound.toURI()).getAbsolutePath();
-                    NotificationTone.playNotificationTone(sound_path);
-                } catch (Exception e){
-                    e.printStackTrace();
-                }
+
+            playNotificationSound("incoming_message.wav");
             addFormattedMessage(chatArea, message.substring(6));
+
         } else if (message.startsWith("PRIVATE:")) {
-            if (!soundIsMuted)
-                try {
-                    URL get_sound = getClass().getClassLoader().getResource("incoming_message.wav");
-                    String sound_path = new File(get_sound.toURI()).getAbsolutePath();
-                    NotificationTone.playNotificationTone(sound_path);
-                } catch (Exception e){
-                    e.printStackTrace();
-                }
+
+            playNotificationSound("incoming_message.wav");
             addFormattedMessage(privateArea, message.substring(8));
+
         } else if (message.startsWith("SERVER:")) {
+
             addFormattedMessage(chatArea, "SERVER: " + message.substring(7));
+
         } else if (message.startsWith("WAITING:")) {
+
             String waitTime = message.substring(8);
             statusLabel.setText("Waiting to connect");
             waitTimeLabel.setText("Estimated wait time: " + waitTime);
             getGlassPane().setVisible(true);
             enableChat(false);
+
+        } else if (message.startsWith("FILE:")) {
+
+            String[] parts = message.split(":", 4);
+            if (parts.length < 4) {
+                addFormattedMessage(chatArea, "Received invalid file message.");
+                return;
+            }
+            String sender = parts[1];
+            String fileName = parts[2];
+            String fileData = parts[3];
+
+            try {
+                byte[] data = java.util.Base64.getDecoder().decode(fileData);
+                File receivedDir = new File("RecievedFiles");
+                if (!receivedDir.exists()) {
+                    receivedDir.mkdir();
+                }
+                File outFile = new File(receivedDir, fileName);
+                try (FileOutputStream fos = new FileOutputStream(outFile)) {
+                    fos.write(data);
+                }
+                addFormattedMessage(chatArea, "File received from " + sender + ": " + fileName);
+
+            } catch (IOException e) {
+                addFormattedMessage(chatArea, "Error saving received file: " + fileName);
+            }
+
         } else if (message.startsWith("ERROR:")) {
+
             JOptionPane.showMessageDialog(this,
                     message.substring(6), "Error", JOptionPane.ERROR_MESSAGE);
             System.exit(1);
+
         }
     }
 
@@ -455,22 +525,10 @@ public class LUConnectClient extends JFrame {
         String recipient = (String) recipientCombo.getSelectedItem();
         if (recipient == null) recipient = "ALL";
 
-        // Send the message to server
         writer.println("MSG:" + recipient + ":" + message);
-
-        // Store message in database
         dbConnection.storeMessage(message, username);
 
-        // Play notification tone
-        if (!soundIsMuted) {
-            try {
-                URL get_sound = getClass().getClassLoader().getResource("outgoing_message.wav");
-                String sound_path = new File(get_sound.toURI()).getAbsolutePath();
-                NotificationTone.playNotificationTone(sound_path);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
+        playNotificationSound("outgoing_message.wav");
 
         // Display in the appropriate area - group or personal
         String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
@@ -482,9 +540,10 @@ public class LUConnectClient extends JFrame {
             addFormattedMessage(privateArea, "To " + recipient + ": " + formattedMessage);
         }
 
-        // Clear the message field
+        // Clear message field
         messageField.setText("");
     }
+
     // Enables/disables input fields based on connection
     private void enableChat(boolean enable) {
         messageField.setEnabled(enable);
@@ -503,7 +562,7 @@ public class LUConnectClient extends JFrame {
                 socket.close();
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            // Silently ignore close errors during shutdown
         }
     }
 
@@ -565,9 +624,6 @@ public class LUConnectClient extends JFrame {
                 statusLabel.setText("Username and password are required.");
                 return;
             }
-
-
-            System.out.println("Connection Established");
 
             if (dbConnection.authenticateUser(username, password)) {
                 loginDialog.dispose();
