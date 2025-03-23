@@ -42,16 +42,23 @@ class DBConnection {
             return false;
         }
 
-        String query = "SELECT * FROM Users WHERE username = ? AND password = ?";
+        String query = "SELECT password FROM Users WHERE username = ?";
 
         try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
             preparedStatement.setString(1, username);
-            preparedStatement.setString(2, password);
 
             try (ResultSet resultSet = preparedStatement.executeQuery()) {
-                return resultSet.next(); // Returns true if a matching user was found
+                if (resultSet.next()) {
+                    String encryptedPasswordFromDB = resultSet.getString("password");
+                    String decryptedPassword = Security.decrypt(encryptedPasswordFromDB);
+                    return decryptedPassword.equals(password);
+                }
+                return false;
             }
         } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -66,13 +73,20 @@ class DBConnection {
 
         String query = "INSERT INTO Users (username, password) VALUES (?, ?)";
 
-        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
-            preparedStatement.setString(1, username);
-            preparedStatement.setString(2, password);
+        try {
+            String encryptedPassword = Security.encrypt(password);
 
-            int rowsAffected = preparedStatement.executeUpdate();
-            return rowsAffected > 0;
+            try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+                preparedStatement.setString(1, username);
+                preparedStatement.setString(2, encryptedPassword);
+
+                int rowsAffected = preparedStatement.executeUpdate();
+                return rowsAffected > 0;
+            }
         } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -81,7 +95,6 @@ class DBConnection {
     // Check if username already exists in DB
     public boolean userExists(String username) {
         if (connection == null) {
-            System.out.println("No database connection.");
             return false;
         }
 
@@ -91,7 +104,7 @@ class DBConnection {
             preparedStatement.setString(1, username);
 
             try (ResultSet resultSet = preparedStatement.executeQuery()) {
-                return resultSet.next(); // Returns true if the username exists
+                return resultSet.next();
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -102,7 +115,6 @@ class DBConnection {
     // Get user ID from username
     public int getUserId(String username) {
         if (connection == null) {
-            System.out.println("No database connection.");
             return -1;
         }
 
@@ -126,20 +138,25 @@ class DBConnection {
     // Store message in message history
     public boolean storeMessage(String messageContent, String username, String recipient_username) {
         if (connection == null) {
-            System.out.println("No database connection.");
             return false;
         }
 
         int user_id = getUserId(username);
         if (user_id == -1) {
-            System.out.println("User not found: " + username);
             return false;
         }
 
-        int recipient_id = getUserId(recipient_username);
-        if (recipient_id == -1) {
-            System.out.println("User not found: " + recipient_username);
-            return false;
+        int recipient_id;
+
+        // For messages with "ALL" create id -999
+        if (recipient_username.equals("ALL")) {
+            recipient_id = -999;
+        } else {
+            recipient_id = getUserId(recipient_username);
+            if (recipient_id == -1) {
+                System.out.println("User not found: " + recipient_username);
+                return false;
+            }
         }
 
         String query = "INSERT INTO MessageHistory (content, user_id, recipient_id) VALUES (?, ?, ?)";
@@ -156,59 +173,4 @@ class DBConnection {
             return false;
         }
     }
-
-    public void printDatabase() {
-        if (connection == null) {
-            System.out.println("No database connection.");
-            return;
-        }
-
-        try {
-            DatabaseMetaData metaData = connection.getMetaData();
-
-            try (ResultSet tables = metaData.getTables(null, null, "%", new String[]{"TABLE"})) {
-                while (tables.next()) {
-                    String tableName = tables.getString("TABLE_NAME");
-
-                    if (tableName.startsWith("sqlite_")) {
-                        continue;
-                    }
-
-                    System.out.println("\nTABLE: " + tableName);
-
-                    try (Statement statement = connection.createStatement();
-                         ResultSet resultSet = statement.executeQuery("SELECT * FROM " + tableName)) {
-
-                        ResultSetMetaData rsMetaData = resultSet.getMetaData();
-                        int columnCount = rsMetaData.getColumnCount();
-
-                        StringBuilder header = new StringBuilder();
-                        for (int i = 1; i <= columnCount; i++) {
-                            header.append(rsMetaData.getColumnName(i));
-                            if (i < columnCount) {
-                                header.append(" | ");
-                            }
-                        }
-                        System.out.println(header.toString());
-                        System.out.println("-".repeat(header.length()));
-
-                        while (resultSet.next()) {
-                            StringBuilder row = new StringBuilder();
-                            for (int i = 1; i <= columnCount; i++) {
-                                String value = resultSet.getString(i);
-                                row.append(value != null ? value : "NULL");
-                                if (i < columnCount) {
-                                    row.append(" | ");
-                                }
-                            }
-                            System.out.println(row.toString());
-                        }
-                    }
-                }
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
 }
