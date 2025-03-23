@@ -25,16 +25,15 @@ public class LUConnectServer {
     private final SimpleSemaphore connectionSemaphore = new SimpleSemaphore(MAX_CLIENTS);   // Semaphore
     private final Timer timer = new Timer();    // Timer to update wait times
 
-
     public static void main(String[] args) {
         dbConnection = DBConnection.getInstance();
         dbConnection.establishConnection();
-        dbConnection.printTables();
         new LUConnectServer().startServer();
     }
 
     public void startServer() {
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            System.out.println("Chat Server started on port " + PORT);
             System.out.println("Chat Server started on port " + PORT);
 
             // Start the timer to update wait times every 10 seconds
@@ -280,6 +279,13 @@ public class LUConnectServer {
                 WaitingClient nextClient = waitingQueue.remove(0);
                 connectClient(nextClient);
             }
+        }
+    }
+
+    // Method to retrieve client handler by username
+    public ClientHandler getClientHandler(String username) {
+        synchronized (activeClients) {
+            return activeClients.get(username);
         }
     }
 }
