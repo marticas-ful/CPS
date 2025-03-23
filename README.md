@@ -1,4 +1,4 @@
-# CPS
+# Concurrent and Parallel Systems Coursework
 My coursework for Concurrent and Parallel Systems
 Programming languages: Java, SQL
 Additional resources: SQLite Database "LUConnect.db", Sound files "incoming_message.wav", and "outgoing_message.wav"
