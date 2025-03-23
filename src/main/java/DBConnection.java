@@ -124,29 +124,90 @@ class DBConnection {
     }
 
     // Store message in message history
-    public boolean storeMessage(String messageContent, String username) {
+    public boolean storeMessage(String messageContent, String username, String recipient_username) {
         if (connection == null) {
             System.out.println("No database connection.");
             return false;
         }
 
-        int userId = getUserId(username);
-        if (userId == -1) {
+        int user_id = getUserId(username);
+        if (user_id == -1) {
             System.out.println("User not found: " + username);
             return false;
         }
 
-        String query = "INSERT INTO MessageHistory (contents, user_id) VALUES (?, ?)";
+        int recipient_id = getUserId(recipient_username);
+        if (recipient_id == -1) {
+            System.out.println("User not found: " + recipient_username);
+            return false;
+        }
+
+        String query = "INSERT INTO MessageHistory (content, user_id, recipient_id) VALUES (?, ?, ?)";
 
         try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
             preparedStatement.setString(1, messageContent);
-            preparedStatement.setInt(2, userId);
+            preparedStatement.setInt(2, user_id);
+            preparedStatement.setInt(3, recipient_id);
 
             int rowsAffected = preparedStatement.executeUpdate();
             return rowsAffected > 0;
         } catch (SQLException e) {
             e.printStackTrace();
             return false;
+        }
+    }
+
+    public void printDatabase() {
+        if (connection == null) {
+            System.out.println("No database connection.");
+            return;
+        }
+
+        try {
+            DatabaseMetaData metaData = connection.getMetaData();
+
+            try (ResultSet tables = metaData.getTables(null, null, "%", new String[]{"TABLE"})) {
+                while (tables.next()) {
+                    String tableName = tables.getString("TABLE_NAME");
+
+                    if (tableName.startsWith("sqlite_")) {
+                        continue;
+                    }
+
+                    System.out.println("\nTABLE: " + tableName);
+
+                    try (Statement statement = connection.createStatement();
+                         ResultSet resultSet = statement.executeQuery("SELECT * FROM " + tableName)) {
+
+                        ResultSetMetaData rsMetaData = resultSet.getMetaData();
+                        int columnCount = rsMetaData.getColumnCount();
+
+                        StringBuilder header = new StringBuilder();
+                        for (int i = 1; i <= columnCount; i++) {
+                            header.append(rsMetaData.getColumnName(i));
+                            if (i < columnCount) {
+                                header.append(" | ");
+                            }
+                        }
+                        System.out.println(header.toString());
+                        System.out.println("-".repeat(header.length()));
+
+                        while (resultSet.next()) {
+                            StringBuilder row = new StringBuilder();
+                            for (int i = 1; i <= columnCount; i++) {
+                                String value = resultSet.getString(i);
+                                row.append(value != null ? value : "NULL");
+                                if (i < columnCount) {
+                                    row.append(" | ");
+                                }
+                            }
+                            System.out.println(row.toString());
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
