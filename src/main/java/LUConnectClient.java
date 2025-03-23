@@ -323,6 +323,7 @@ public class LUConnectClient extends JFrame {
                     byte[] fileBytes = java.nio.file.Files.readAllBytes(selectedFile.toPath());
                     String encodedFile = java.util.Base64.getEncoder().encodeToString(fileBytes);
                     writer.println("FILE:" + recipient + ":" + fileName + ":" + encodedFile);
+                    dbConnection.storeMessage(fileName, username, recipient);
                     JOptionPane.showMessageDialog(this, "File sent: " + fileName, "File Sent", JOptionPane.INFORMATION_MESSAGE);
                 } catch (IOException ex) {
                     JOptionPane.showMessageDialog(this, "Error reading file: " + ex.getMessage(), "File Sending Error", JOptionPane.ERROR_MESSAGE);
@@ -464,10 +465,10 @@ public class LUConnectClient extends JFrame {
                 try (FileOutputStream fos = new FileOutputStream(outFile)) {
                     fos.write(data);
                 }
-                addFormattedMessage(chatArea, "File received from " + sender + ": " + fileName);
+                addFormattedMessage(privateArea, "File received from " + sender + ": " + fileName + ". Stored in directory ReceivedFiles");
 
             } catch (IOException e) {
-                addFormattedMessage(chatArea, "Error saving received file: " + fileName);
+                addFormattedMessage(privateArea, "Error saving received file: " + fileName);
             }
 
         } else if (message.startsWith("ERROR:")) {
@@ -526,7 +527,6 @@ public class LUConnectClient extends JFrame {
         if (recipient == null) recipient = "ALL";
 
         writer.println("MSG:" + recipient + ":" + message);
-        dbConnection.storeMessage(message, username);
 
         playNotificationSound("outgoing_message.wav");
 
@@ -539,7 +539,7 @@ public class LUConnectClient extends JFrame {
         } else {
             addFormattedMessage(privateArea, "To " + recipient + ": " + formattedMessage);
         }
-
+        dbConnection.storeMessage(message, username, recipient);
         // Clear message field
         messageField.setText("");
     }
