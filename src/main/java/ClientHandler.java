@@ -1,16 +1,19 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.io.File;
-import java.io.FileOutputStream;
+import javax.crypto.interfaces.PBEKey;
+import java.io.*;
 import java.net.Socket;
+import java.sql.Connection;
 
 class ClientHandler implements Runnable {
     private final Socket clientSocket;
     private final String username;
     private final LUConnectServer server;
     private PrintWriter writer;
+    private static DBConnection dbConnection;
+
+    static{
+        dbConnection = DBConnection.getInstance();
+        Connection connection = dbConnection.establishConnection();
+    }
 
     public ClientHandler(Socket socket, String username, LUConnectServer server) throws IOException {
         this.clientSocket = socket;
@@ -109,5 +112,45 @@ class ClientHandler implements Runnable {
             // Remove client
             server.removeClient(username);
         }
+    }
+
+    public static boolean authenticateUserinDB(String username, String password) {
+
+        if (dbConnection == null) {
+            dbConnection = DBConnection.getInstance();
+        }
+
+        Connection connection = dbConnection.establishConnection();
+
+        return dbConnection.authenticateUser(username, password);
+
+    }
+
+    public static boolean registerUserinDB(String username, String password){
+
+        if (dbConnection == null) {
+            dbConnection = DBConnection.getInstance();
+            System.out.println("Got instance");
+        }
+
+        return dbConnection.registerUser(username, password);
+    }
+
+    public static boolean userExistsinDB(String username) {
+
+        if (dbConnection == null) {
+            dbConnection = DBConnection.getInstance();
+        }
+
+        return dbConnection.userExists(username);
+    }
+
+    public static void storeMessageinDB(String encryptedFileName, String username, String recipient){
+
+        if (dbConnection == null) {
+            dbConnection = DBConnection.getInstance();
+        }
+
+        dbConnection.storeMessage(encryptedFileName, username, recipient);
     }
 }
