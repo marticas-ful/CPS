@@ -293,21 +293,19 @@ public class LUConnectServer {
 
         if (dbConnection == null) {
             dbConnection = DBConnection.getInstance();
+            dbConnection.establishConnection();
         }
-
-        Connection connection = dbConnection.establishConnection();
 
         return dbConnection.authenticateUser(username, password);
 
     }
 
     public static boolean registerUserinDB(String username, String password){
-
         if (dbConnection == null) {
             dbConnection = DBConnection.getInstance();
+            dbConnection.establishConnection();
             System.out.println("Got instance");
         }
-
         return dbConnection.registerUser(username, password);
     }
 
@@ -315,6 +313,7 @@ public class LUConnectServer {
 
         if (dbConnection == null) {
             dbConnection = DBConnection.getInstance();
+            dbConnection.establishConnection();
         }
 
         return dbConnection.userExists(username);
