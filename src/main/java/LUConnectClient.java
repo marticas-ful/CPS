@@ -326,7 +326,7 @@ public class LUConnectClient extends JFrame {
                     String encodedFile = java.util.Base64.getEncoder().encodeToString(fileBytes);
                     writer.println("FILE:" + recipient + ":" + fileName + ":" + encodedFile);
                     String encryptedFileName = Security.encrypt(fileName);
-                    ClientHandler.storeMessageinDB(encryptedFileName, username, recipient);
+                    LUConnectServer.storeMessageinDB(encryptedFileName, username, recipient);
                     JOptionPane.showMessageDialog(this, "File sent: " + fileName, "File Sent", JOptionPane.INFORMATION_MESSAGE);
 
                 } catch (IOException ex) {
@@ -565,7 +565,7 @@ public class LUConnectClient extends JFrame {
                 addFormattedMessage(privateArea, "To " + recipient + ": " + formattedMessage);
             }
             String encryptedMessage = Security.encrypt(message);
-            ClientHandler.storeMessageinDB(encryptedMessage, username, recipient);
+            LUConnectServer.storeMessageinDB(encryptedMessage, username, recipient);
 
             messageField.setText("");
 
@@ -655,7 +655,7 @@ public class LUConnectClient extends JFrame {
                 return;
             }
 
-            if (ClientHandler.authenticateUserinDB(username, password)) {
+            if (LUConnectServer.authenticateUserinDB(username, password)) {
                 loginDialog.dispose();
                 try {
                     new LUConnectClient(username, password);
@@ -745,12 +745,12 @@ public class LUConnectClient extends JFrame {
                 return;
             }
 
-            if (ClientHandler.userExistsinDB(username)) {
+            if (LUConnectServer.userExistsinDB(username)) {
                 statusLabel.setText("Username already exists.");
                 return;
             }
 
-            if (ClientHandler.registerUserinDB(username, password)) {
+            if (LUConnectServer.registerUserinDB(username, password)) {
                 registerDialog.dispose();
                 try {
                     new LUConnectClient(username, password);
