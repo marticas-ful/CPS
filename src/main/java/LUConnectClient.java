@@ -24,8 +24,6 @@ public class LUConnectClient extends JFrame {
     private BufferedReader reader;
     private String username;
     private String password;
-    private static DBConnection dbConnection;
-    private String encryptionKey;
 
     // Components
     private JTextPane chatArea;
@@ -48,8 +46,6 @@ public class LUConnectClient extends JFrame {
     private boolean soundIsMuted = false;
 
     public static void main(String[] args) {
-        dbConnection = DBConnection.getInstance();
-        dbConnection.establishConnection();
 
         SwingUtilities.invokeLater(() -> {
             loginScreen();
@@ -314,40 +310,41 @@ public class LUConnectClient extends JFrame {
             String extension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
 
             if (extension.equals("jpeg") || extension.equals("docx") || extension.equals("pdf")) {
-                
+
                 String recipient = (String) recipientCombo.getSelectedItem();
-                
+
                 if (recipient == null || recipient.equals("ALL")) {
-                    
+
                     JOptionPane.showMessageDialog(this, "Please select a specific user for file transfer.", "No User Selected", JOptionPane.WARNING_MESSAGE);
                     return;
-                    
+
                 }
 
                 try {
-                    
+
                     byte[] fileBytes = java.nio.file.Files.readAllBytes(selectedFile.toPath());
                     String encodedFile = java.util.Base64.getEncoder().encodeToString(fileBytes);
                     writer.println("FILE:" + recipient + ":" + fileName + ":" + encodedFile);
                     String encryptedFileName = Security.encrypt(fileName);
-                    dbConnection.storeMessage(encryptedFileName, username, recipient);
+                    ClientHandler.storeMessageinDB(encryptedFileName, username, recipient);
                     JOptionPane.showMessageDialog(this, "File sent: " + fileName, "File Sent", JOptionPane.INFORMATION_MESSAGE);
-                    
+
                 } catch (IOException ex) {
-                    
+
                     JOptionPane.showMessageDialog(this, "Error reading file: " + ex.getMessage(), "File Sending Error", JOptionPane.ERROR_MESSAGE);
-                
+
                 } catch (Exception e) {
-                    
+
                     throw new RuntimeException(e);
                 }
             } else {
-                
+
                 JOptionPane.showMessageDialog(this, "Invalid file type- use .docx, .pdf and .jpeg only", "Invalid File", JOptionPane.ERROR_MESSAGE);
-            
+
             }
         }
     }
+
 
     private void toggleMuteButton() {
         soundIsMuted = muteButton.isSelected();
@@ -355,9 +352,9 @@ public class LUConnectClient extends JFrame {
     }
 
     private void connectToServer() {
-        
+
         new Thread(() -> {
-            
+
             try {
                 socket = new Socket(SERVER_HOST, SERVER_PORT);
                 writer = new PrintWriter(socket.getOutputStream(), true);
@@ -371,28 +368,28 @@ public class LUConnectClient extends JFrame {
                     messageHandler = new Thread(this::receiveMessages);
                     messageHandler.start();
                 }
-            
+
             } catch (IOException e) {
                 SwingUtilities.invokeLater(() -> {
                     statusLabel.setText("Connection failed: " + e.getMessage());
                     statusLabel.setForeground(Color.RED);
                 });
-            
+
             }
-        
+
         }).start();
     }
 
     // Continuously read incoming messages from server
     private void receiveMessages() {
-        
+
         try {
             String message;
             while ((message = reader.readLine()) != null) {
                 final String msg = message;
                 SwingUtilities.invokeLater(() -> processMessage(msg));
             }
-            
+
         } catch (IOException e) {
             if (connected) {
                 SwingUtilities.invokeLater(() -> {
@@ -406,7 +403,7 @@ public class LUConnectClient extends JFrame {
 
     // Format messages to send
     private void addFormattedMessage(JTextPane pane, String message) {
-        
+
         try {
             Document doc = pane.getDocument();
             doc.insertString(doc.getLength(), message + "\n", null);
@@ -414,13 +411,13 @@ public class LUConnectClient extends JFrame {
         } catch (BadLocationException e) {
             e.printStackTrace();
         }
-        
+
     }
 
     private void playNotificationSound(String resourceName) {
-        
+
         if (!soundIsMuted) {
-            
+
             try {
                 URL get_sound = getClass().getClassLoader().getResource(resourceName);
                 String sound_path = new File(get_sound.toURI()).getAbsolutePath();
@@ -428,7 +425,7 @@ public class LUConnectClient extends JFrame {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            
+
         }
     }
 
@@ -568,10 +565,10 @@ public class LUConnectClient extends JFrame {
                 addFormattedMessage(privateArea, "To " + recipient + ": " + formattedMessage);
             }
             String encryptedMessage = Security.encrypt(message);
-            dbConnection.storeMessage(encryptedMessage, username, recipient);
-            
+            ClientHandler.storeMessageinDB(encryptedMessage, username, recipient);
+
             messageField.setText("");
-            
+
         } catch (Exception e){
             e.printStackTrace();
         }
@@ -658,11 +655,11 @@ public class LUConnectClient extends JFrame {
                 return;
             }
 
-            if (dbConnection.authenticateUser(username, password)) {
+            if (ClientHandler.authenticateUserinDB(username, password)) {
                 loginDialog.dispose();
                 try {
                     new LUConnectClient(username, password);
-                } catch (URISyntaxException ex) {
+                } catch (Exception ex) {
                     ex.printStackTrace();
                 }
             } else {
@@ -748,12 +745,12 @@ public class LUConnectClient extends JFrame {
                 return;
             }
 
-            if (dbConnection.userExists(username)) {
+            if (ClientHandler.userExistsinDB(username)) {
                 statusLabel.setText("Username already exists.");
                 return;
             }
 
-            if (dbConnection.registerUser(username, password)) {
+            if (ClientHandler.registerUserinDB(username, password)) {
                 registerDialog.dispose();
                 try {
                     new LUConnectClient(username, password);
