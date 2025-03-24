@@ -4,6 +4,7 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -286,5 +287,45 @@ public class LUConnectServer {
         synchronized (activeClients) {
             return activeClients.get(username);
         }
+    }
+
+    public static boolean authenticateUserinDB(String username, String password) {
+
+        if (dbConnection == null) {
+            dbConnection = DBConnection.getInstance();
+        }
+
+        Connection connection = dbConnection.establishConnection();
+
+        return dbConnection.authenticateUser(username, password);
+
+    }
+
+    public static boolean registerUserinDB(String username, String password){
+
+        if (dbConnection == null) {
+            dbConnection = DBConnection.getInstance();
+            System.out.println("Got instance");
+        }
+
+        return dbConnection.registerUser(username, password);
+    }
+
+    public static boolean userExistsinDB(String username) {
+
+        if (dbConnection == null) {
+            dbConnection = DBConnection.getInstance();
+        }
+
+        return dbConnection.userExists(username);
+    }
+
+    public static void storeMessageinDB(String encryptedFileName, String username, String recipient){
+
+        if (dbConnection == null) {
+            dbConnection = DBConnection.getInstance();
+        }
+
+        dbConnection.storeMessage(encryptedFileName, username, recipient);
     }
 }
